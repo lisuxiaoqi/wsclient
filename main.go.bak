@@ -1,0 +1,72 @@
+package main
+
+//
+//import (
+//	"fmt"
+//	"log"
+//	"net/url"
+//	"os"
+//	"os/signal"
+//	"sync"
+//)
+//
+//const (
+//	Version = "0.2.1"
+//	//rawWSURL = "wss://exchainws.okex.org:8443"
+//)
+//
+//func main2() {
+//	dest, err := url.Parse(rawWSURL)
+//	if err != nil {
+//		fmt.Fprintln(os.Stderr, err)
+//		os.Exit(1)
+//	}
+//
+//	originURL := *dest
+//	if dest.Scheme == "wss" {
+//		originURL.Scheme = "https"
+//	} else {
+//		originURL.Scheme = "http"
+//	}
+//	origin := originURL.String()
+//
+//	openWsConnection(origin, dest.String())
+//}
+//
+//func openWsConnection(origin, dest string) {
+//	fmt.Println("Open ws connections:")
+//	var wg sync.WaitGroup
+//	done := make(chan interface{})
+//
+//	wg.Add(1)
+//	go func() {
+//		errChan, err := connect(dest, origin, false)
+//		if err != nil {
+//			fmt.Fprintln(os.Stderr, err)
+//			os.Exit(1)
+//		}
+//
+//		for {
+//			select {
+//			case <-errChan:
+//				fmt.Fprintln(os.Stderr, err)
+//				wg.Done()
+//				return
+//			case <-done:
+//				fmt.Println("Quit routine:")
+//				wg.Done()
+//				return
+//			}
+//		}
+//	}()
+//
+//	interrupt := make(chan os.Signal)
+//	signal.Notify(interrupt, os.Interrupt)
+//
+//	_ = <-interrupt
+//	// We received a SIGINT (Ctrl + C). Terminate gracefully...
+//	log.Println("Received SIGINT interrupt signal. Closing all pending connections")
+//	close(done)
+//
+//	wg.Wait()
+//}

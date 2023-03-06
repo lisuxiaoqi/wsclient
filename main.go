@@ -2,81 +2,72 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net/url"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"log"
 	"os"
-	"os/user"
-	"path/filepath"
-
-	"github.com/chzyer/readline"
-	"github.com/spf13/cobra"
+	"os/signal"
+	"sync"
 )
 
-const Version = "0.2.1"
+const (
+	rawWSURL  = "wss://exchainws.okex.org:8443"
+	rawRPCURL = "https://exchainrpc.okex.org"
+)
 
-var options struct {
-	origin       string
-	printVersion bool
-	insecure bool
-}
+var wsMode bool
 
 func main() {
-	rootCmd := &cobra.Command{
-		Use:   "ws URL",
-		Short: "websocket tool",
-		Run:   root,
-	}
-	rootCmd.Flags().StringVarP(&options.origin, "origin", "o", "", "websocket origin")
-	rootCmd.Flags().BoolVarP(&options.printVersion, "version", "v", false, "print version")
-	rootCmd.Flags().BoolVarP(&options.insecure, "insecure", "k", false, "skip ssl certificate check")
-
-	rootCmd.Execute()
-}
-
-func root(cmd *cobra.Command, args []string) {
-	if options.printVersion {
-		fmt.Printf("ws v%s\n", Version)
-		os.Exit(0)
+	//
+	if os.Args[1] == "ws" {
+		wsMode = true
 	}
 
-	if len(args) != 1 {
-		cmd.Help()
-		os.Exit(1)
-	}
-
-	dest, err := url.Parse(args[0])
+	//open rpc connection
+	rpcClient, err := ethclient.Dial(rawRPCURL)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
-	var origin string
-	if options.origin != "" {
-		origin = options.origin
-	} else {
-		originURL := *dest
-		if dest.Scheme == "wss" {
-			originURL.Scheme = "https"
+	done := make(chan interface{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		//open ws connection
+		//errChan, err := wsConnect(rawWSURL, rpcClient)
+		//errChan, err := ethwsconn(rawWSURL, rpcClient)
+		var errChan chan error
+		var err error
+		if wsMode {
+			errChan, err = ethwsconn2(rawWSURL, rpcClient)
 		} else {
-			originURL.Scheme = "http"
+			errChan, err = ethwsconn(rawWSURL, rpcClient)
 		}
-		origin = originURL.String()
-	}
-
-	var historyFile string
-	user, err := user.Current()
-	if err == nil {
-		historyFile = filepath.Join(user.HomeDir, ".ws_history")
-	}
-
-	err = connect(dest.String(), origin, &readline.Config{
-		Prompt:      "> ",
-		HistoryFile: historyFile,
-	}, options.insecure)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		if err != io.EOF && err != readline.ErrInterrupt {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-	}
+
+		for {
+			select {
+			case <-errChan:
+				fmt.Fprintln(os.Stderr, err)
+				wg.Done()
+				return
+			case <-done:
+				fmt.Println("Quit routine:")
+				wg.Done()
+				return
+			}
+		}
+	}()
+
+	interrupt := make(chan os.Signal)
+	signal.Notify(interrupt, os.Interrupt)
+
+	_ = <-interrupt
+	// We received a SIGINT (Ctrl + C). Terminate gracefully...
+	log.Println("Received SIGINT interrupt signal. Closing all pending connections")
+	close(done)
+
 }
